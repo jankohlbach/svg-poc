@@ -12,8 +12,6 @@ const svgRefs = ref([]);
 const dropZone = ref(null);
 
 const handleDragstart = (e: DragEvent) => {
-  console.log("dragstart");
-
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = "copyMove";
 
@@ -32,18 +30,15 @@ const handleDragstart = (e: DragEvent) => {
 };
 
 const handleDragend = (e: DragEvent) => {
-  console.log("dragend");
   e.dataTransfer?.clearData();
 };
 
 const handleDragover = (e: DragEvent) => {
   e.preventDefault();
-  console.log("dragover");
 };
 
 const handleDrop = (e: DragEvent) => {
   e.preventDefault();
-  console.log("drop");
 
   if (e.dataTransfer) {
     const offset = e.dataTransfer.getData("application/offset").split(",");
@@ -54,6 +49,8 @@ const handleDrop = (e: DragEvent) => {
       case "copy":
         // eslint-disable-next-line no-case-declarations
         const clone = el.cloneNode(true) as HTMLElement;
+        // eslint-disable-next-line no-case-declarations
+        const svg = clone.querySelector("svg") as SVGElement;
 
         clone.id = uuidv4();
         clone.classList.add("dropped");
@@ -61,6 +58,7 @@ const handleDrop = (e: DragEvent) => {
         clone.style.left = e.clientX - parseInt(offset[0]) + "px";
         clone.style.top = e.clientY - parseInt(offset[1]) + "px";
         (e.target as HTMLElement | null)?.appendChild(clone);
+        svg.id = uuidv4();
 
         clone.addEventListener("dragstart", handleDragstart);
         clone.addEventListener("dragend", handleDragend);
@@ -73,11 +71,58 @@ const handleDrop = (e: DragEvent) => {
   }
 };
 
-onMounted(() => {
-  console.log(svgRefs.value);
+const generateSvg = () => {
+  const mergedSvg = document.createElement("svg");
+  mergedSvg.setAttribute(
+    "viewBox",
+    `0 0 ${(dropZone.value as HTMLElement | null)?.clientWidth} ${
+      (dropZone.value as HTMLElement | null)?.clientHeight
+    }`
+  );
+  mergedSvg.setAttribute(
+    "width",
+    String((dropZone.value as HTMLElement | null)?.clientWidth)
+  );
+  mergedSvg.setAttribute(
+    "height",
+    String((dropZone.value as HTMLElement | null)?.clientHeight)
+  );
 
+  const svgToMergeWraps = document.querySelectorAll(".target span");
+  const defs = document.createElement("defs");
+
+  svgToMergeWraps.forEach((svgToMergeWrap) => {
+    const svg = svgToMergeWrap.querySelector("svg") as SVGElement;
+
+    defs.insertAdjacentHTML(
+      "beforeend",
+      `<symbol
+        id="${svg.id}"
+        viewBox="${svg.getAttribute("viewBox")}"
+        transform="translate(
+          ${(svgToMergeWrap as HTMLElement).style.left}
+          ${(svgToMergeWrap as HTMLElement).style.top})"
+      >
+        ${svg.innerHTML}
+      </symbol>`
+    );
+    mergedSvg.insertAdjacentHTML("beforeend", `<use href="#${svg.id}" />`);
+  });
+  mergedSvg.insertAdjacentElement("afterbegin", defs);
+
+  console.log(mergedSvg);
+
+  const svgData = mergedSvg.outerHTML;
+  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  const link = document.createElement("a");
+  link.href = svgUrl;
+  link.download = `${uuidv4()}.svg`;
+  link.click();
+};
+
+onMounted(() => {
   svgRefs.value.forEach((svgWrap: HTMLElement) => {
-    console.log(svgWrap);
     svgWrap.addEventListener("dragstart", handleDragstart);
     svgWrap.addEventListener("dragend", handleDragend);
   });
@@ -107,7 +152,9 @@ onMounted(() => {
         </li>
       </ul>
     </div>
-    <div class="target" ref="dropZone"></div>
+    <div class="target" ref="dropZone">
+      <button @click="generateSvg">generate</button>
+    </div>
   </div>
 </template>
 
@@ -124,6 +171,7 @@ onMounted(() => {
 }
 
 .target {
+  position: relative;
   grid-column: 2 / 3;
   background-color: rgb(200, 207, 206);
 }
@@ -133,7 +181,14 @@ span {
   cursor: move;
 
   &.dropped {
-    position: absolute;
+    position: fixed;
   }
+}
+
+button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 2rem;
 }
 </style>
