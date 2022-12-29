@@ -44,6 +44,9 @@ const handleDrop = (e: DragEvent) => {
     const offset = e.dataTransfer.getData("application/offset").split(",");
     const elId = e.dataTransfer.getData("application/drag-id");
     const el = document.getElementById(elId);
+    const targetRect = (
+      dropZone.value as unknown as HTMLElement
+    ).getBoundingClientRect();
 
     switch (el?.dataset.drag) {
       case "copy":
@@ -55,17 +58,20 @@ const handleDrop = (e: DragEvent) => {
         clone.id = uuidv4();
         clone.classList.add("dropped");
         clone.dataset.drag = "move";
-        clone.style.left = e.clientX - parseInt(offset[0]) + "px";
-        clone.style.top = e.clientY - parseInt(offset[1]) + "px";
-        (e.target as HTMLElement | null)?.appendChild(clone);
+        clone.style.left =
+          e.clientX - targetRect.left - parseInt(offset[0]) + "px";
+        clone.style.top =
+          e.clientY - targetRect.top - parseInt(offset[1]) + "px";
         svg.id = uuidv4();
+        (e.target as HTMLElement | null)?.appendChild(clone);
 
         clone.addEventListener("dragstart", handleDragstart);
         clone.addEventListener("dragend", handleDragend);
         break;
       case "move":
-        el.style.left = e.clientX - parseInt(offset[0]) + "px";
-        el.style.top = e.clientY - parseInt(offset[1]) + "px";
+        el.style.left =
+          e.clientX - targetRect.left - parseInt(offset[0]) + "px";
+        el.style.top = e.clientY - targetRect.top - parseInt(offset[1]) + "px";
         break;
     }
   }
@@ -92,25 +98,29 @@ const generateSvg = () => {
   const defs = document.createElement("defs");
 
   svgToMergeWraps.forEach((svgToMergeWrap) => {
-    const svg = svgToMergeWrap.querySelector("svg") as SVGElement;
+    const svgToMerge = svgToMergeWrap.querySelector("svg") as SVGElement;
 
     defs.insertAdjacentHTML(
       "beforeend",
-      `<symbol
-        id="${svg.id}"
-        viewBox="${svg.getAttribute("viewBox")}"
+      `<symbol id="${svgToMerge.id}">
+        ${svgToMerge.innerHTML}
+      </symbol>`
+    );
+    mergedSvg.insertAdjacentHTML(
+      "beforeend",
+      `<svg
+        viewBox="${svgToMerge.getAttribute("viewBox")}"
+        width="${svgToMerge.getAttribute("width")}"
+        height="${svgToMerge.getAttribute("height")}"
         transform="translate(
           ${(svgToMergeWrap as HTMLElement).style.left}
           ${(svgToMergeWrap as HTMLElement).style.top})"
       >
-        ${svg.innerHTML}
-      </symbol>`
+        <use href="#${svgToMerge.id}" />
+      </svg>`
     );
-    mergedSvg.insertAdjacentHTML("beforeend", `<use href="#${svg.id}" />`);
   });
   mergedSvg.insertAdjacentElement("afterbegin", defs);
-
-  console.log(mergedSvg);
 
   const svgData = mergedSvg.outerHTML;
   const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
@@ -181,7 +191,7 @@ span {
   cursor: move;
 
   &.dropped {
-    position: fixed;
+    position: absolute;
   }
 }
 
